@@ -105,17 +105,38 @@ class _ColorPickerPageState extends State<ColorPickerPage>
       vsync: this,
     );
     _initializeWebSocket();
+    
+    // Request current state after a short delay
+    Future.delayed(const Duration(seconds: 1), () {
+      _requestCurrentState();
+    });
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    try {
+      webSocketService.dispose(); // Close WebSocket connection
+    } catch (e) {
+      debugPrint("Error disposing WebSocket: $e");
+    }
     super.dispose();
   }
 
   void _initializeWebSocket() {
     try {
       webSocketService = WebSocketService();
+      
+      // Listen to incoming data (String format)
+      webSocketService.incomingMessages.listen((data) {
+        _handleIncomingData(data);
+      });
+      
+      webSocketService.connectionStatus.listen((connectionStatus) {
+        setState(() {
+        });
+      });
+      
       setState(() {
         isConnected = true;
       });
@@ -123,6 +144,102 @@ class _ColorPickerPageState extends State<ColorPickerPage>
       setState(() {
         isConnected = false;
       });
+      debugPrint("WebSocket initialization error: $e");
+    }
+  }
+
+  void _handleIncomingData(dynamic data) {
+    try {
+      Map<String, dynamic> jsonData;
+      
+      // Check if data is String and parse it
+      if (data is String) {
+        jsonData = jsonDecode(data);
+      } else if (data is Map<String, dynamic>) {
+        jsonData = data;
+      } else {
+        debugPrint("Received unknown data type: ${data.runtimeType}");
+        return;
+      }
+      
+      setState(() {
+        // Handle color data
+        if (jsonData.containsKey('color')) {
+          final colorData = jsonData['color'];
+          if (colorData is Map<String, dynamic>) {
+            selectedColor = Color.fromARGB(
+              255,
+              (colorData['r'] as num?)?.toInt() ?? selectedColor.red,
+              (colorData['g'] as num?)?.toInt() ?? selectedColor.green,
+              (colorData['b'] as num?)?.toInt() ?? selectedColor.blue,
+            );
+          }
+        }
+        
+        // Handle brightness data
+        if (jsonData.containsKey('brightness')) {
+          final brightnessValue = jsonData['brightness'];
+          if (brightnessValue is num) {
+            brightness = brightnessValue.toDouble().clamp(1.0, 255.0);
+          }
+        }
+        
+        // Handle mode data
+        if (jsonData.containsKey('mode')) {
+          final mode = jsonData['mode'] as String?;
+          if (mode != null && _modes.any((m) => m['label'] == mode)) {
+            selectedMode = mode;
+          }
+        }
+        
+        // Handle power state
+        if (jsonData.containsKey('power')) {
+          final powerState = jsonData['power'] as bool?;
+          if (powerState != null) {
+            // You can add power state handling here if needed
+            debugPrint("Power state: $powerState");
+          }
+        }
+        
+        // Handle status messages
+        if (jsonData.containsKey('status')) {
+          final status = jsonData['status'] as String?;
+          if (status != null) {
+          }
+        }
+        
+        // Handle device info
+        if (jsonData.containsKey('device')) {
+          debugPrint("Connected to: ${jsonData['device']}");
+          if (jsonData.containsKey('led_count')) {
+            debugPrint("LED count: ${jsonData['led_count']}");
+          }
+          if (jsonData.containsKey('wifi_signal')) {
+            debugPrint("WiFi signal: ${jsonData['wifi_signal']} dBm");
+          }
+        }
+      });
+      
+    } catch (e) {
+      debugPrint("Error handling incoming data: $e");
+      debugPrint("Raw data received: $data");
+    }
+  }
+
+
+
+  Future<void> _requestCurrentState() async {
+    if (!isConnected) return;
+
+    try {
+      Map<String, dynamic> requestData = {
+        "action": "get_current_state",
+        "timestamp": DateTime.now().millisecondsSinceEpoch,
+      };
+      
+      webSocketService.sendJsonData(requestData);
+    } catch (e) {
+      debugPrint("Error requesting current state: $e");
     }
   }
 
@@ -232,27 +349,42 @@ class _ColorPickerPageState extends State<ColorPickerPage>
                 width: 1,
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: isConnected ? Colors.green : Colors.red,
-                    shape: BoxShape.circle,
+            child: GestureDetector(
+              onTap: () {
+                if (isConnected) {
+                  _requestCurrentState();
+                } else {
+                  _initializeWebSocket();
+                }
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: isConnected ? Colors.green : Colors.red,
+                      shape: BoxShape.circle,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  isConnected ? "ON" : "OFF",
-                  style: TextStyle(
-                    color: isConnected ? Colors.green : Colors.red,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                  const SizedBox(width: 6),
+                  Text(
+                    isConnected ? "ON" : "OFF",
+                    style: TextStyle(
+                      color: isConnected ? Colors.green : Colors.red,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 4),
+                  Icon(
+                    isConnected ? Icons.refresh : Icons.wifi_off,
+                    color: isConnected ? Colors.green : Colors.red,
+                    size: 12,
+                  ),
+                ],
+              ),
             ),
           ),
         ],
