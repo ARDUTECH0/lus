@@ -22,7 +22,7 @@ class _ColorPickerPageState extends State<ColorPickerPage>
   late WebSocketService webSocketService;
 
   // Compact LED modes - Govee style
-    static const List<Map<String, dynamic>> _modes = [
+  static const List<Map<String, dynamic>> _modes = [
     {
       "icon": FontAwesomeIcons.solidCircle,
       "label": "Static",
@@ -165,34 +165,45 @@ class _ColorPickerPageState extends State<ColorPickerPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildCompactHeader(),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    _buildColorSection(),
-                    const SizedBox(height: 16),
-                    _buildBrightnessSection(),
-                    const SizedBox(height: 16),
-                    _buildModesGrid(),
-                  ],
-                ),
+      // إزالة SafeArea من هنا وإضافته داخليًا حسب الحاجة
+      body: Column(
+        children: [
+          _buildCompactHeader(),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                // إضافة padding للأسفل لتجنب مشاكل الـ home indicator
+                bottom: MediaQuery.of(context).padding.bottom + 16,
+              ),
+              child: Column(
+                children: [
+                  _buildColorSection(),
+                  const SizedBox(height: 16),
+                  _buildBrightnessSection(),
+                  const SizedBox(height: 16),
+                  _buildModesGrid(),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildCompactHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      // إضافة SafeArea للهيدر فقط
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: MediaQuery.of(context).padding.top + 12, // تجنب الـ notch
+        bottom: 12,
+      ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [selectedColor.withOpacity(0.2), Colors.transparent],
@@ -252,6 +263,7 @@ class _ColorPickerPageState extends State<ColorPickerPage>
   Widget _buildColorSection() {
     return Container(
       width: double.infinity,
+      // تقليل الارتفاع قليلاً لتجنب مشاكل الشاشة
       height: 350,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -287,23 +299,25 @@ class _ColorPickerPageState extends State<ColorPickerPage>
             ],
           ),
           const SizedBox(height: 16),
-          ClipRect(
-            child: Align(
-              alignment: Alignment.topCenter,
-              heightFactor: 0.68,
-              child: ColorPicker(
-                enableAlpha: true,
-                showLabel: false,
-                portraitOnly: false,
-                colorPickerWidth: 250,
-                pickerColor: selectedColor,
-                onColorChanged: (Color color) {
-                  setState(() {
-                    selectedColor = color;
-                  });
-                  _sendData("color");
-                },
-                paletteType: PaletteType.hueWheel,
+          Flexible(
+            child: ClipRect(
+              child: Align(
+                alignment: Alignment.topCenter,
+                heightFactor: 0.90,
+                child: ColorPicker(
+                  enableAlpha: true,
+                  showLabel: false,
+                  portraitOnly: false,
+                  colorPickerWidth: 250,
+                  pickerColor: selectedColor,
+                  onColorChanged: (Color color) {
+                    setState(() {
+                      selectedColor = color;
+                    });
+                    _sendData("color");
+                  },
+                  paletteType: PaletteType.hueWheel,
+                ),
               ),
             ),
           ),
@@ -440,7 +454,7 @@ class _ColorPickerPageState extends State<ColorPickerPage>
                         size: 18,
                       ),
                       const SizedBox(height: 8),
-                     Text(
+                      Text(
                         mode["label"],
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
